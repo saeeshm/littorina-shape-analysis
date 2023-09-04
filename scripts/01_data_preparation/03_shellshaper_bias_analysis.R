@@ -11,6 +11,21 @@ library(readr)
 library(dplyr)
 library(ggplot2)
 library(tidyr)
+library(patchwork)
+
+# ==== Paths ====
+
+# output folder for plots
+plot_dir <- 'output/bias-analysis'
+dir.create(plot_dir)
+
+# ==== Global variables ====
+
+# Custom theme for plots
+theme_shape <- function(size=12, font='serif'){
+  theme_minimal(base_size=size, base_family = font) +
+    theme(plot.background = element_rect(fill='white', colour=NA))
+}
 
 # ==== Reading data ====
 
@@ -18,7 +33,7 @@ library(tidyr)
 p1 <- read_csv('data/bias-test/parameters-saeesh.txt') %>% 
   mutate(person = 'Saeesh')
 p2 <- read_csv('data/bias-test/parameters-gabs.txt') %>% 
-  mutate(person = 'Gabs')
+  mutate(person = 'Gabriel')
 # Joining to 1 table, named by person.
 params <- bind_rows(p1, p2)
 
@@ -34,8 +49,10 @@ p1 <- params %>%
               show.legend=F) +
   theme_shape() +
   facet_wrap(facets='var', scales = 'free_y') +
-  labs(x=NULL, y=NULL, title='Distribution of scored results per person')
-ggsave('bias-point-plot.png')
+  labs(x=NULL, y=NULL, title='Scored results by person')
+ggsave(file.path(plot_dir, 'bias-point-plot.png'), plot=p1, 
+       width=7, height=6, dpi=300, scale=1.2)
+
 # Calculating pairwise differences in our assigned values for each image 
 diff_tab <- params %>% 
   pivot_longer(gw:scaleFactor, names_to='var', values_to = 'value') %>% 
@@ -70,3 +87,10 @@ p2 <- diff_tab %>%
   theme_shape() +
   guides(colour='none') +
   labs(x = NULL, y=NULL, title='Distribution of % differences')
+ggsave(file.path(plot_dir, 'bias-reltv-diffs.png'), plot=p2, 
+       width=7, height=5, dpi=300, scale=1.2)
+
+# Creating a combined mosaic to synthesize both results
+mosaic <- p1/p2 + plot_layout(heights = c(2,1))
+ggsave(file.path(plot_dir, 'bias-analysis.png'), plot=mosaic, 
+       width=7, height=7, dpi=300, scale=1.2)

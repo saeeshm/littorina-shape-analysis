@@ -12,6 +12,13 @@ library(readr)
 library(dplyr)
 library(stringr)
 library(ggplot2)
+library(purrr)
+library(vegan)
+
+# ==== Paths ====
+
+# output folder for plots
+plot_dir <- 'output'
 
 # ==== Reading data ====
 
@@ -52,7 +59,7 @@ specvec <- setNames(imgs$species, imgs$new_name)
 # Index vector for site per id
 sitevec <- setNames(imgs$site, imgs$new_name)
 
-# Interaction vector (species and sites per id)
+# Index vector for the interaction (species and sites per id)
 interacvec <- setNames(interaction(imgs$site, imgs$species), imgs$new_name)
 
 # Index vector for tidal gradient
@@ -73,22 +80,20 @@ idvec <- tps$coords[1,1,] %>% names()
 
 # ==== Exploratory analysis ====
 
+# Shape separability using PCA ----------
+
 # Plotting the average shape and variability post-alignment
 plot(tps)
 
-# Plotting PCA and colouring by species
+# Computing PCA of shape variable
 mpca <- geomorph::gm.prcomp(tps$coords, scale.=T)
 summary(mpca)
 
-0.2408915
-0.1557211
 # Plotting PCA - variability across species is much less clearly defined as
 # compared to shellshaper results
 p2 <- mpca$x %>% 
   as.data.frame() %>% 
   ggplot() +
-  # geom_hline(aes(yintercept=0), linetype='dashed') +
-  # geom_vline(aes(xintercept=0), linetype='dashed') +
   geom_point(aes(x = Comp1, y=Comp2, 
                  colour=interacvec[rownames(mpca$x)], 
                  shape=interacvec[rownames(mpca$x)])) +
@@ -99,56 +104,14 @@ p2 <- mpca$x %>%
                    colour=specvec[rownames(mpca$x)]),
                show.legend=F) +
   scale_color_manual(values=c('darkgrey', 'darkgrey')) +
-  # scale_color_brewer(palette = 'Accent') +
   theme_shape() +
   labs(x='PC1: 24.09%', y='PC2: 15.57%')
-ggsave(paste0('output/tps_full_pca.png'), width=7, height=3.5, dpi=300, scale=1.1)
-# mosaic <- p1+p2+plot_layout(guides='collect')
-# ggsave(paste0('output/both_full_pca.png'), mosaic, width=7, height=4, dpi=300, scale = 1.35)
+ggsave(paste0(plot_dir, '/tps_full_pca.png'), width=7, height=3.5, dpi=300, scale=1.1)
 
-# Splitting pca by species (same as shellshaper)
-ltr_comps <- mpca$x %>% as.data.frame()
-ltr_comps <- ltr_comps[names(specvec[specvec == "Littorea"]), ] 
-m1 <- ltr_comps %>% 
-  ggplot() +
-  # geom_hline(aes(yintercept=0), linetype='dashed') +
-  # geom_vline(aes(xintercept=0), linetype='dashed') +
-  geom_point(aes(x = Comp2, y=Comp1, 
-                 colour=sitevec[rownames(ltr_comps)], 
-                 shape=sitevec[rownames(ltr_comps)]), size=2) +
-  stat_ellipse(aes(x = Comp2, y=Comp1,
-                   colour=sitevec[rownames(ltr_comps)]),
-               show.legend=F) +
-  # scale_color_viridis_d() +
-  labs(colour='Site', shape='Site') +
-  scale_color_brewer(palette = 'Accent') +
-  theme_shape() +
-  labs(y='PC1: 24.09%', x='PC2: 15.57%')
-
-sxt_comps <- mpca$x %>% as.data.frame()
-sxt_comps <- sxt_comps[names(specvec[specvec == "Saxatilis"]), ] 
-m2 <- sxt_comps %>% 
-  ggplot() +
-  # geom_hline(aes(yintercept=0), linetype='dashed') +
-  # geom_vline(aes(xintercept=0), linetype='dashed') +
-  geom_point(aes(x = Comp2, y=Comp1, 
-                 colour=sitevec[rownames(sxt_comps)], 
-                 shape=sitevec[rownames(sxt_comps)]), size=2) +
-  stat_ellipse(aes(x = Comp2, y=Comp1,
-                   colour=sitevec[rownames(sxt_comps)]),
-               show.legend=F) +
-  # scale_color_manual(values=c('darkgrey', 'darkgrey')) +
-  # scale_color_viridis_d() +
-  labs(colour='Factor', shape='Factor') +
-  # scale_color_brewer(palette = 'Accent') +
-  theme_shape() +
-  labs(y='PC1 (24.09%)', x='PC2 (15.57%)')
-
-mosaic <- m1/m2
-mosaic
+# Average shapes across factors ----------
 
 # Getting the reference (mean shape)
-ref<-mshape(tps$coords)
+ref <- mshape(tps$coords)
 
 # Getting the mean shape for each group of our main factors
 get_mean_shape <- function(level){
@@ -159,18 +122,22 @@ gp2_mn<-get_mean_shape('Sheltered.Littorea')
 gp3_mn<-get_mean_shape('Exposed.Saxatilis')
 gp4_mn<-get_mean_shape('Sheltered.Saxatilis')
 
-# Plotting all mean shapes relative to the reference mean shape
+# Plotting all mean shapes relative to the reference mean shape - first the
+# general landmark variability
 png(paste0(plot_dir, '/tps-mean-shapes/landmarks_distribution.png'), 
     width=7, height=5, units = 'in', 
     res = 150)
 plot(tps)
 dev.off()
 
+# Setting a magnification magnitude to highlight differences relative to mean
+magnif <- 6
+
 # Exposed littorea
 png(paste0(plot_dir, '/tps-mean-shapes/exposed_littorea.png'), 
     width=7, height=5, units = 'in', 
     res = 150)
-plotRefToTarget(ref, gp1_mn, mag=7, method='points', 
+plotRefToTarget(ref, gp1_mn, mag=magnif, method='points', 
                 links=define.sliders(10:29)[,2:3]
                 )
 dev.off()
@@ -179,7 +146,7 @@ dev.off()
 png(paste0(plot_dir, '/tps-mean-shapes/sheltered_littorea.png'), 
     width=7, height=5, units = 'in', 
     res = 150)
-plotRefToTarget(ref, gp2_mn, mag=7, method='points', 
+plotRefToTarget(ref, gp2_mn, mag=magnif, method='points', 
                 links=define.sliders(10:29)[,2:3]
                 )
 dev.off()
@@ -188,7 +155,7 @@ dev.off()
 png(paste0(plot_dir, '/tps-mean-shapes/exposed_saxatilis.png'), 
     width=7, height=5, units = 'in', 
     res = 150)
-plotRefToTarget(ref, gp3_mn, mag=6, method='points', 
+plotRefToTarget(ref, gp3_mn, mag=magnif, method='points', 
                 links=define.sliders(10:29)[,2:3]
                 )
 dev.off()
@@ -197,11 +164,11 @@ dev.off()
 png(paste0(plot_dir, '/tps-mean-shapes/sheltered_saxatilis.png'), 
     width=7, height=5, units = 'in', 
     res = 150)
-plotRefToTarget(ref, gp4_mn, mag=7, method='points', 
+plotRefToTarget(ref, gp4_mn, mag=magnif, method='points', 
                 links=define.sliders(10:29)[,2:3])
 dev.off()
 
-# ==== Exploring differences across factors ====
+# ==== Statisical analysis: significance of differences across factors ====
 
 # Creating model dataframes ----------
 
@@ -210,76 +177,21 @@ gdf <- geomorph.data.frame(tps, species=specvec[idvec],
                            site=sitevec[idvec], 
                            tide=tidevec[idvec])
 
-# G-dfs separately for each species
-# Aligning landmark data using GPA  
-ltr_index <- (specvec == 'Littorea')[idvec]
-gdf_ltr <- landmarks[,,ltr_index] %>% 
-  gpagen(landmarks, 
-         curves=define.sliders(10:29),
-         print.progress = T, 
-         ProcD = T,
-         Proj=T) %>% 
-  geomorph.data.frame(site=sitevec[idvec][ltr_index], 
-                      tide=tidevec[idvec][ltr_index])
-sxt_index <- (specvec == 'Saxatilis')[idvec]
-gdf_sxt <- landmarks[,,sxt_index] %>% 
-  gpagen(landmarks, 
-         curves=define.sliders(10:29),
-         print.progress = T, 
-         ProcD = T,
-         Proj=T) %>% 
-  geomorph.data.frame(site=sitevec[idvec][sxt_index], 
-                      tide=tidevec[idvec][sxt_index])
-
 # Fitting models ----------
 
-# Performing the procustes anova to analyze shape variation - nothing in the
-# tide variables is significant, so we drop this factor
-# m0 <- procD.lm(f1 = coords ~ site+species+tide+Csize+
-#                  site*species+site*tide+site*Csize+
-#                  species*tide+species*Csize+
-#                  tide*Csize+
-#                  site*species*tide+species*tide*Csize+site*tide*Csize+
-#                  site*species*tide*Csize, 
-#                data=gdf, int.first = T)
-# summary(m0)
-
-# Reduced model produces a significant result for all main and interaction
-# factors, consistent with the findings from shellshaper
-# m1 <- procD.lm(f1 = coords ~ site + species + Csize+
-#                  site*species + site*Csize + species*Csize+
-#                  site*species*Csize, 
-#                data=gdf, int.first = T)
-# summary(m1)
+# Performing the procrustes manova to analyze shape variation - nothing in the
+# tide variables is significant, so we can drop this factor
 m0 <- procD.lm(f1 = coords ~ site + species + tide + 
                  site*species + site*tide + tide*species +
                  site*tide*species, 
                data=gdf, int.first = T)
 summary(m0)
 
+# Reduced model produces a significant result for all main and interaction
+# factors, consistent with the findings from shellshaper
 m1 <- procD.lm(f1 = coords ~ site + species + site*species, 
                data=gdf, int.first = T)
 summary(m1)
-
-# Separate models for only littorea
-mltr0 <- procD.lm(f1 = coords ~ site+tide+Csize+
-                    site*tide+site*Csize+tide*Csize+
-                    site*tide*Csize, 
-               data=gdf_ltr, int.first = T)
-summary(mltr0)
-mltr1 <- procD.lm(f1 = coords ~ site+Csize+site*Csize, 
-                  data=gdf_ltr, int.first = T)
-summary(mltr1)
-
-# Separate models for only saxatilis
-msxt0 <- procD.lm(f1 = coords ~ site+tide+Csize+
-                    site*tide+site*Csize+tide*Csize+
-                    site*tide*Csize, 
-                  data=gdf_sxt, int.first = T)
-summary(msxt0)
-msxt1 <- procD.lm(f1 = coords ~ site+tide+Csize+site*Csize+site*tide, 
-                  data=gdf_sxt, int.first = T)
-summary(msxt1)
 
 # ==== Dispersion analysis ====
 
@@ -298,28 +210,27 @@ mod <- betadisper(dmx, group=gdf$site)
 mod <- betadisper(dmx, group=gdf$species)
 mod <- betadisper(dmx, group=gdf$tide)
 mod <- betadisper(dmx, group=interaction(gdf$species, gdf$site))
-## Plot the groups and distances to centroids on the
-## first two PCoA axes
-# png(paste0(plot_dir, '/tps_disp_species.png'), width=7, height=5, units = 'in', 
-#     res = 150)
-p2 <- plot(mod, axes=c(1,2))
-# dev.off()
 
-plot(mod, axes=c(1,2))
-## Draw a boxplot of the distances to centroid for each group
-boxplot(mod)
-
-# Perform test on distances to centroid
+# Perform significance test on dispersion, based on distances to centroid
 anova(mod)
 permutest(mod, pairwise = TRUE, permutations = 999)
+
+# Plot the groups and distances to centroids on the first two PCoA axes
+# png(paste0(plot_dir, '/shpr_disp_species.png'), width=7, height=5,
+#     units = 'in', res = 150)
+plot(mod, axes=c(1,2))
+# dev.off()
+
+# Draw a boxplot of the distances to centroid for each group
+boxplot(mod)
 
 ## Tukey's Honest Significant Differences
 mod.HSD <- TukeyHSD(mod)
 plot(mod.HSD)
 
-# ==== Trajectory analysis ====
+# ==== Trajectory analysis (Not Completed/Presented) ====
 
-# Trajectory analysis for visualizing differences between groups (full model)
+# Trajectory analysis for visualizing differences between groups 
 trj1 <- trajectory.analysis(m1, groups=gdf$site, traj.pts=gdf$species)
 plot1 <- plot(trj1, 
               pch=as.numeric(factor(gdf$site)) + 20, 

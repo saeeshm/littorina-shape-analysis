@@ -31,7 +31,7 @@ plotdat <- fdat %>%
   mutate(tidal_height = factor(tidal_height, 
                                levels=c('Submerged', 'Water\nline', 'Upper\nintertidal')))
 
-# Shell density per site
+# Counting shell density per site
 plotdat %>% 
   group_by(site) %>% 
   summarize(sum(num_snails),
@@ -40,7 +40,7 @@ plotdat %>%
 # ==== Preparing a summary plot ====
 
 
-# pivot_longer(cols=num_snails:algae_cover, names_to='var', values_to='value') %>% 
+# Number of shells/shell density 
 ns <- plotdat %>% 
   ggplot(aes(x = tidal_height, y = num_snails, colour=tidal_height, group=tidal_height)) +
   geom_boxplot() +
@@ -51,6 +51,8 @@ ns <- plotdat %>%
   labs(x=NULL, 
        y='Shell Density (per m2)',
        colour='Tidal Level')
+
+# Boulder coverage (%)
 bd <- plotdat %>% 
   ggplot(aes(x = tidal_height, y = boulder_cover, colour=tidal_height, group=tidal_height)) +
   geom_boxplot() +
@@ -61,6 +63,8 @@ bd <- plotdat %>%
   labs(x=NULL, 
        y='% Coverage of Boulders',
        colour='Tidal Level')
+
+# Pebble coverage (%)
 pb <- plotdat %>% 
   ggplot(aes(x = tidal_height, y = pebbles_cover, colour=tidal_height, group=tidal_height)) +
   geom_boxplot() +
@@ -71,6 +75,8 @@ pb <- plotdat %>%
   labs(x=NULL, 
        y='% Coverage of Pebbles/Sand',
        colour='Tidal Level')
+
+# Algae coverage (%)
 ag <- plotdat %>% 
   ggplot(aes(x = tidal_height, y = algae_cover, colour=tidal_height, group=tidal_height)) +
   geom_boxplot() +
@@ -82,7 +88,7 @@ ag <- plotdat %>%
        y='% Coverage of Algae',
        colour='Tidal Level')
 
-# Creating mosaic
+# Creating composite plot
 fplot <- (bd+pb)/(ag+ns)
 ggsave(filename='output/site_descripion_mosaic.png', plot=fplot, width=7, height=5, 
        dpi=300, scale=1.3)
